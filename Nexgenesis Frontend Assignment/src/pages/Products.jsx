@@ -210,14 +210,23 @@ const Products = () => {
 
       {/* Main content */}
       <main className="mx-auto max-w-7xl p-4 sm:p-6">
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold text-slate-900">
-            Products
-          </h2>
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-900">
+              Products
+            </h2>
 
-          <p className="mt-1 text-sm text-slate-500">
-            Manage your product catalog
-          </p>
+            <p className="mt-1 text-sm text-slate-500">
+              Manage your product catalog
+            </p>
+          </div>
+
+          <button
+            onClick={() => navigate("/products/new")}
+            className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            + Add Product
+          </button>
         </div>
 
         {/* Filters */}

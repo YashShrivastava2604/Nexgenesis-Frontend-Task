@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getProduct } from "../api/productsApi";
+import { deleteProduct } from "../api/productsApi";
 
 const ProductDetails = () => {
   const { id } = useParams();
@@ -10,6 +11,28 @@ const ProductDetails = () => {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    const confirmed = window.confirm(
+        "Are you sure you want to delete this product?"
+    );
+
+    if (!confirmed || deleting) {
+        return;
+    }
+
+    setDeleting(true);
+
+    try {
+        await deleteProduct(id);
+
+        navigate("/products");
+    } catch {
+        setError("Failed to delete product.");
+        setDeleting(false);
+    }
+  };
 
   useEffect(() => {
     const loadProduct = async () => {
@@ -81,20 +104,21 @@ const ProductDetails = () => {
   return (
     <div className="min-h-screen bg-slate-100">
       <header className="border-b bg-white px-4 py-4 sm:px-6">
-        <div className="mx-auto flex max-w-7xl items-center justify-between">
-          <button
-            onClick={() => navigate("/products")}
-            className="text-sm font-medium text-slate-600 hover:text-slate-900"
-          >
-            ← Back to Products
-          </button>
+        <div className="flex gap-3">
+            <button
+                onClick={() => navigate(`/products/${id}/edit`)}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            >
+                Edit Product
+            </button>
 
-          <button
-            onClick={() => navigate(`/products/${id}/edit`)}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-          >
-            Edit Product
-          </button>
+            <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+            >
+                {deleting ? "Deleting..." : "Delete"}
+            </button>
         </div>
       </header>
 
