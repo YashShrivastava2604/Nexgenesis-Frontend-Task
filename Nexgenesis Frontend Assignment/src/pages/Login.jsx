@@ -104,7 +104,7 @@ const Login = () => {
         </form>
 
         <p className="mt-6 text-center text-xs text-slate-400">
-          Demo credentials: emilys / emilyspass
+          Demo credentials: emily / emilyspass
         </p>
       </div>
     </div>
