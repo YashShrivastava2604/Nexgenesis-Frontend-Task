@@ -19,21 +19,25 @@ export const getProducts = async ({
 } = {}) => {
   let endpoint = "/products";
 
+  // Decide which DummyJSON endpoint to use
   if (search.trim()) {
-    endpoint = `/products/search?q=${encodeURIComponent(
-      search.trim()
-    )}`;
+    endpoint = "/products/search";
   } else if (category) {
-    endpoint = `/products/category/${encodeURIComponent(
-      category
-    )}`;
+    endpoint = `/products/category/${encodeURIComponent(category)}`;
   }
 
+  // Build query parameters
   const params = new URLSearchParams();
 
-  params.set("limit", limit);
-  params.set("skip", skip);
+  params.set("limit", String(limit));
+  params.set("skip", String(skip));
 
+  // Search query
+  if (search.trim()) {
+    params.set("q", search.trim());
+  }
+
+  // Sorting
   if (sortBy) {
     params.set("sortBy", sortBy);
   }
@@ -49,58 +53,7 @@ export const getProducts = async ({
     }
   );
 
-  const localProducts = JSON.parse(
-    localStorage.getItem("product-mutations") ||
-      '{"added":[],"updated":{},"deleted":[]}'
-  );
-
-  let products = response.data.products
-    .filter(
-      (product) =>
-        !localProducts.deleted.includes(
-          String(product.id)
-        )
-    )
-    .map(
-      (product) =>
-        localProducts.updated[String(product.id)] ||
-        product
-    );
-
-  /*
-   * Locally-created products are included in the
-   * normal product listing.
-   */
-  if (!search.trim() && !category) {
-    products = [
-      ...localProducts.added,
-      ...products,
-    ];
-  }
-
-  /*
-   * Prevent duplicate IDs from ever reaching React.
-   */
-  products = Array.from(
-    new Map(
-      products.map((product) => [
-        String(product.id),
-        product,
-      ])
-    ).values()
-  );
-
-  return {
-    ...response.data,
-    products,
-    total:
-      response.data.total -
-      localProducts.deleted.filter(
-        (id) =>
-          !String(id).startsWith("local-")
-      ).length +
-      localProducts.added.length,
-  };
+  return response.data;
 };
 
 export const getCategories = async () => {

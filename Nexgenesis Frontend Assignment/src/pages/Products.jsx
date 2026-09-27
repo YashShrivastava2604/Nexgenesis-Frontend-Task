@@ -18,10 +18,10 @@ const Products = () => {
 
   const [searchParams, setSearchParams] = useSearchParams();
 
-  /*
-   * Read pagination values from the URL.
-   * Invalid values fall back to safe defaults.
-   */
+  // --------------------------------------------------
+  // URL STATE
+  // --------------------------------------------------
+
   const rawPage = Number(searchParams.get("page"));
   const rawLimit = Number(searchParams.get("limit"));
 
@@ -34,80 +34,83 @@ const Products = () => {
     ? rawLimit
     : 10;
 
-  /*
-   * Read filters and sorting from the URL.
-   */
   const urlSearch = searchParams.get("search") || "";
   const category = searchParams.get("category") || "";
   const sortBy = searchParams.get("sortBy") || "";
   const order = searchParams.get("order") || "";
 
-  /*
-   * Local search state allows the user to type
-   * without making an API request on every keystroke.
-   */
-  const [searchInput, setSearchInput] = useState(urlSearch);
+  // --------------------------------------------------
+  // LOCAL SEARCH STATE
+  // --------------------------------------------------
 
+  const [searchInput, setSearchInput] = useState(urlSearch);
   const [categories, setCategories] = useState([]);
 
   const debouncedSearch = useDebounce(searchInput, 500);
 
-  /*
-   * Load product categories once when the page mounts.
-   */
+  // --------------------------------------------------
+  // LOAD CATEGORIES
+  // --------------------------------------------------
+
   useEffect(() => {
     const loadCategories = async () => {
       try {
         const data = await getCategories();
         setCategories(data);
       } catch {
-        // The product list can still work if categories fail.
+        // Product list can still work without categories.
       }
     };
 
     loadCategories();
   }, []);
 
-  /*
-   * Keep the search input synchronized with the URL.
-   */
+  // --------------------------------------------------
+  // SYNC INPUT WHEN URL CHANGES
+  // --------------------------------------------------
+
   useEffect(() => {
     setSearchInput(urlSearch);
   }, [urlSearch]);
 
-  /*
-   * Update URL after the user stops typing.
-   * Searching always resets pagination to page 1.
-   */
+  // --------------------------------------------------
+  // DEBOUNCED SEARCH
+  // --------------------------------------------------
+
   useEffect(() => {
-    if (debouncedSearch === urlSearch) {
+    const value = debouncedSearch.trim();
+
+    // Nothing changed.
+    if (value === urlSearch) {
       return;
     }
 
-    const params = new URLSearchParams(searchParams);
+    setSearchParams((currentParams) => {
+      const params = new URLSearchParams(currentParams);
 
-    if (debouncedSearch.trim()) {
-      params.set("search", debouncedSearch.trim());
+      if (value) {
+        // Search products.
+        params.set("search", value);
 
-      // DummyJSON cannot search and category-filter together.
-      params.delete("category");
-    } else {
-      params.delete("search");
-    }
+        // DummyJSON does not support
+        // search + category together.
+        params.delete("category");
+      } else {
+        // Empty search -> remove search parameter.
+        params.delete("search");
+      }
 
-    params.set("page", "1");
+      // Every new search starts from page 1.
+      params.set("page", "1");
 
-    setSearchParams(params);
-  }, [
-    debouncedSearch,
-    urlSearch,
-    searchParams,
-    setSearchParams,
-  ]);
+      return params;
+    });
+  }, [debouncedSearch, urlSearch, setSearchParams]);
 
-  /*
-   * Fetch products based on the current URL state.
-   */
+  // --------------------------------------------------
+  // FETCH PRODUCTS
+  // --------------------------------------------------
+
   const {
     products,
     total,
@@ -123,77 +126,95 @@ const Products = () => {
     order,
   });
 
-  /*
-   * Change page while preserving the other URL parameters.
-   */
+  // --------------------------------------------------
+  // PAGINATION
+  // --------------------------------------------------
+
   const updatePage = (newPage) => {
-    const params = new URLSearchParams(searchParams);
+    setSearchParams((currentParams) => {
+      const params = new URLSearchParams(currentParams);
 
-    params.set("page", String(newPage));
+      params.set("page", String(newPage));
 
-    setSearchParams(params);
+      return params;
+    });
   };
 
-  /*
-   * Changing page size resets pagination to page 1.
-   */
   const updateLimit = (newLimit) => {
-    const params = new URLSearchParams(searchParams);
+    setSearchParams((currentParams) => {
+      const params = new URLSearchParams(currentParams);
 
-    params.set("limit", String(newLimit));
-    params.set("page", "1");
+      params.set("limit", String(newLimit));
+      params.set("page", "1");
 
-    setSearchParams(params);
+      return params;
+    });
   };
 
-  /*
-   * Change category and reset pagination.
-   */
+  // --------------------------------------------------
+  // CATEGORY
+  // --------------------------------------------------
+
   const updateCategory = (newCategory) => {
-    const params = new URLSearchParams(searchParams);
+    setSearchParams((currentParams) => {
+      const params = new URLSearchParams(currentParams);
 
-    if (newCategory) {
-      params.set("category", newCategory);
-    } else {
-      params.delete("category");
-    }
+      if (newCategory) {
+        params.set("category", newCategory);
 
-    params.set("page", "1");
+        // Search and category cannot be used together.
+        params.delete("search");
+      } else {
+        params.delete("category");
+      }
 
-    setSearchParams(params);
+      params.set("page", "1");
+
+      return params;
+    });
   };
 
-  /*
-   * Change sorting and reset pagination.
-   */
+  // --------------------------------------------------
+  // SORT
+  // --------------------------------------------------
+
   const updateSort = (value) => {
-    const params = new URLSearchParams(searchParams);
+    setSearchParams((currentParams) => {
+      const params = new URLSearchParams(currentParams);
 
-    if (!value) {
-      params.delete("sortBy");
-      params.delete("order");
-    } else {
-      const [newSortBy, newOrder] = value.split("-");
+      if (!value) {
+        params.delete("sortBy");
+        params.delete("order");
+      } else {
+        const [newSortBy, newOrder] = value.split("-");
 
-      params.set("sortBy", newSortBy);
-      params.set("order", newOrder);
-    }
+        params.set("sortBy", newSortBy);
+        params.set("order", newOrder);
+      }
 
-    params.set("page", "1");
+      params.set("page", "1");
 
-    setSearchParams(params);
+      return params;
+    });
   };
+
+  // --------------------------------------------------
+  // UI
+  // --------------------------------------------------
 
   return (
     <div className="min-h-screen bg-slate-100">
-      {/* Header */}
+
+      {/* HEADER */}
       <nav className="border-b bg-white px-4 py-4 sm:px-6">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
+
           <h1 className="text-xl font-bold text-slate-900">
             Product Admin
           </h1>
 
           <div className="flex items-center gap-4">
+
             <span className="hidden text-sm text-slate-600 sm:block">
               {user?.firstName} {user?.lastName}
             </span>
@@ -204,13 +225,17 @@ const Products = () => {
             >
               Logout
             </button>
+
           </div>
         </div>
       </nav>
 
-      {/* Main content */}
+      {/* MAIN */}
       <main className="mx-auto max-w-7xl p-4 sm:p-6">
+
+        {/* PAGE HEADER */}
         <div className="mb-6 flex items-center justify-between">
+
           <div>
             <h2 className="text-2xl font-bold text-slate-900">
               Products
@@ -227,9 +252,10 @@ const Products = () => {
           >
             + Add Product
           </button>
+
         </div>
 
-        {/* Filters */}
+        {/* FILTERS */}
         <ProductFilters
           search={searchInput}
           onSearchChange={setSearchInput}
@@ -241,7 +267,7 @@ const Products = () => {
           onSortChange={updateSort}
         />
 
-        {/* Loading */}
+        {/* LOADING */}
         {loading && (
           <div className="rounded-xl border border-slate-200 bg-white p-10 text-center">
             <p className="text-slate-500">
@@ -250,9 +276,10 @@ const Products = () => {
           </div>
         )}
 
-        {/* Error */}
+        {/* ERROR */}
         {error && !loading && (
           <div className="rounded-xl border border-red-100 bg-white p-10 text-center">
+
             <p className="mb-4 text-red-600">
               {error}
             </p>
@@ -263,21 +290,24 @@ const Products = () => {
             >
               Retry
             </button>
+
           </div>
         )}
 
-        {/* Empty */}
+        {/* EMPTY */}
         {!loading &&
           !error &&
           products.length === 0 && (
             <div className="rounded-xl border border-slate-200 bg-white p-10 text-center">
+
               <p className="text-slate-500">
                 No products found.
               </p>
+
             </div>
           )}
 
-        {/* Products */}
+        {/* PRODUCTS */}
         {!loading &&
           !error &&
           products.length > 0 && (
@@ -305,6 +335,7 @@ const Products = () => {
               />
             </>
           )}
+
       </main>
     </div>
   );
