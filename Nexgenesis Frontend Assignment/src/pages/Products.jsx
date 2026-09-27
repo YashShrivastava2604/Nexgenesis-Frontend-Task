@@ -1,12 +1,81 @@
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+
 import { useAuth } from "../context/AuthContext";
 import useProducts from "../hooks/useProducts";
+import useDebounce from "../hooks/useDebounce";
+
 import ProductTable from "../components/products/ProductTable";
 import ProductCards from "../components/products/ProductCards";
+import ProductFilters from "../components/products/ProductFilters";
+import Pagination from "../components/products/Pagination";
 
 const Products = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  /*
+   * Read values from URL.
+   * Invalid values are replaced with safe defaults.
+   */
+  const rawPage = Number(searchParams.get("page"));
+  const rawLimit = Number(searchParams.get("limit"));
+
+  const page =
+    Number.isInteger(rawPage) && rawPage > 0
+      ? rawPage
+      : 1;
+
+  const limit =
+    [10, 20, 50].includes(rawLimit)
+      ? rawLimit
+      : 10;
+
+  const urlSearch = searchParams.get("search") || "";
+
+  /*
+   * Local input state lets the user type freely.
+   * The debounced value is what actually triggers the API.
+   */
+  const [searchInput, setSearchInput] = useState(urlSearch);
+
+  const debouncedSearch = useDebounce(searchInput, 500);
+
+  /*
+   * Keep local search input synchronized with URL.
+   */
+  useEffect(() => {
+    setSearchInput(urlSearch);
+  }, [urlSearch]);
+
+  /*
+   * Once the user stops typing, update the URL.
+   * Search always goes back to page 1.
+   */
+  useEffect(() => {
+    if (debouncedSearch === urlSearch) {
+      return;
+    }
+
+    const params = new URLSearchParams(searchParams);
+
+    if (debouncedSearch.trim()) {
+      params.set("search", debouncedSearch.trim());
+    } else {
+      params.delete("search");
+    }
+
+    params.set("page", "1");
+
+    setSearchParams(params);
+  }, [
+    debouncedSearch,
+    urlSearch,
+    searchParams,
+    setSearchParams,
+  ]);
 
   const {
     products,
@@ -15,13 +84,30 @@ const Products = () => {
     error,
     retry,
   } = useProducts({
-    page: 1,
-    limit: 10,
-    search: "",
+    page,
+    limit,
+    search: urlSearch,
     category: "",
     sortBy: "",
     order: "",
   });
+
+  const updatePage = (newPage) => {
+    const params = new URLSearchParams(searchParams);
+
+    params.set("page", String(newPage));
+
+    setSearchParams(params);
+  };
+
+  const updateLimit = (newLimit) => {
+    const params = new URLSearchParams(searchParams);
+
+    params.set("limit", String(newLimit));
+    params.set("page", "1");
+
+    setSearchParams(params);
+  };
 
   return (
     <div className="min-h-screen bg-slate-100">
@@ -56,6 +142,11 @@ const Products = () => {
             Manage your product catalog
           </p>
         </div>
+
+        <ProductFilters
+          search={searchInput}
+          onSearchChange={setSearchInput}
+        />
 
         {loading && (
           <div className="rounded-xl bg-white p-10 text-center">
@@ -102,9 +193,13 @@ const Products = () => {
               }
             />
 
-            <p className="mt-4 text-sm text-slate-500">
-              Showing {products.length} of {total} products
-            </p>
+            <Pagination
+              page={page}
+              total={total}
+              limit={limit}
+              onPageChange={updatePage}
+              onLimitChange={updateLimit}
+            />
           </>
         )}
       </main>
