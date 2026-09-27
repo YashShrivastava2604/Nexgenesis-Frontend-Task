@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext";
+import { getCategories } from "../api/productsApi";
+
 import useProducts from "../hooks/useProducts";
 import useDebounce from "../hooks/useDebounce";
 
@@ -17,8 +19,8 @@ const Products = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   /*
-   * Read values from URL.
-   * Invalid values are replaced with safe defaults.
+   * Read pagination values from the URL.
+   * Invalid values fall back to safe defaults.
    */
   const rawPage = Number(searchParams.get("page"));
   const rawLimit = Number(searchParams.get("limit"));
@@ -28,31 +30,54 @@ const Products = () => {
       ? rawPage
       : 1;
 
-  const limit =
-    [10, 20, 50].includes(rawLimit)
-      ? rawLimit
-      : 10;
-
-  const urlSearch = searchParams.get("search") || "";
+  const limit = [10, 20, 50].includes(rawLimit)
+    ? rawLimit
+    : 10;
 
   /*
-   * Local input state lets the user type freely.
-   * The debounced value is what actually triggers the API.
+   * Read filters and sorting from the URL.
+   */
+  const urlSearch = searchParams.get("search") || "";
+  const category = searchParams.get("category") || "";
+  const sortBy = searchParams.get("sortBy") || "";
+  const order = searchParams.get("order") || "";
+
+  /*
+   * Local search state allows the user to type
+   * without making an API request on every keystroke.
    */
   const [searchInput, setSearchInput] = useState(urlSearch);
+
+  const [categories, setCategories] = useState([]);
 
   const debouncedSearch = useDebounce(searchInput, 500);
 
   /*
-   * Keep local search input synchronized with URL.
+   * Load product categories once when the page mounts.
+   */
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const data = await getCategories();
+        setCategories(data);
+      } catch {
+        // The product list can still work if categories fail.
+      }
+    };
+
+    loadCategories();
+  }, []);
+
+  /*
+   * Keep the search input synchronized with the URL.
    */
   useEffect(() => {
     setSearchInput(urlSearch);
   }, [urlSearch]);
 
   /*
-   * Once the user stops typing, update the URL.
-   * Search always goes back to page 1.
+   * Update URL after the user stops typing.
+   * Searching always resets pagination to page 1.
    */
   useEffect(() => {
     if (debouncedSearch === urlSearch) {
@@ -63,6 +88,9 @@ const Products = () => {
 
     if (debouncedSearch.trim()) {
       params.set("search", debouncedSearch.trim());
+
+      // DummyJSON cannot search and category-filter together.
+      params.delete("category");
     } else {
       params.delete("search");
     }
@@ -77,6 +105,9 @@ const Products = () => {
     setSearchParams,
   ]);
 
+  /*
+   * Fetch products based on the current URL state.
+   */
   const {
     products,
     total,
@@ -87,11 +118,14 @@ const Products = () => {
     page,
     limit,
     search: urlSearch,
-    category: "",
-    sortBy: "",
-    order: "",
+    category,
+    sortBy,
+    order,
   });
 
+  /*
+   * Change page while preserving the other URL parameters.
+   */
   const updatePage = (newPage) => {
     const params = new URLSearchParams(searchParams);
 
@@ -100,6 +134,9 @@ const Products = () => {
     setSearchParams(params);
   };
 
+  /*
+   * Changing page size resets pagination to page 1.
+   */
   const updateLimit = (newLimit) => {
     const params = new URLSearchParams(searchParams);
 
@@ -109,9 +146,48 @@ const Products = () => {
     setSearchParams(params);
   };
 
+  /*
+   * Change category and reset pagination.
+   */
+  const updateCategory = (newCategory) => {
+    const params = new URLSearchParams(searchParams);
+
+    if (newCategory) {
+      params.set("category", newCategory);
+    } else {
+      params.delete("category");
+    }
+
+    params.set("page", "1");
+
+    setSearchParams(params);
+  };
+
+  /*
+   * Change sorting and reset pagination.
+   */
+  const updateSort = (value) => {
+    const params = new URLSearchParams(searchParams);
+
+    if (!value) {
+      params.delete("sortBy");
+      params.delete("order");
+    } else {
+      const [newSortBy, newOrder] = value.split("-");
+
+      params.set("sortBy", newSortBy);
+      params.set("order", newOrder);
+    }
+
+    params.set("page", "1");
+
+    setSearchParams(params);
+  };
+
   return (
     <div className="min-h-screen bg-slate-100">
-      <nav className="border-b bg-white px-6 py-4">
+      {/* Header */}
+      <nav className="border-b bg-white px-4 py-4 sm:px-6">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <h1 className="text-xl font-bold text-slate-900">
             Product Admin
@@ -124,7 +200,7 @@ const Products = () => {
 
             <button
               onClick={logout}
-              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
             >
               Logout
             </button>
@@ -132,6 +208,7 @@ const Products = () => {
         </div>
       </nav>
 
+      {/* Main content */}
       <main className="mx-auto max-w-7xl p-4 sm:p-6">
         <div className="mb-6">
           <h2 className="text-2xl font-bold text-slate-900">
@@ -143,65 +220,82 @@ const Products = () => {
           </p>
         </div>
 
+        {/* Filters */}
         <ProductFilters
           search={searchInput}
           onSearchChange={setSearchInput}
+          category={category}
+          categories={categories}
+          sortBy={sortBy}
+          order={order}
+          onCategoryChange={updateCategory}
+          onSortChange={updateSort}
         />
 
+        {/* Loading */}
         {loading && (
-          <div className="rounded-xl bg-white p-10 text-center">
+          <div className="rounded-xl border border-slate-200 bg-white p-10 text-center">
             <p className="text-slate-500">
               Loading products...
             </p>
           </div>
         )}
 
+        {/* Error */}
         {error && !loading && (
-          <div className="rounded-xl bg-white p-10 text-center">
-            <p className="mb-4 text-red-600">{error}</p>
+          <div className="rounded-xl border border-red-100 bg-white p-10 text-center">
+            <p className="mb-4 text-red-600">
+              {error}
+            </p>
 
             <button
               onClick={retry}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white"
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
             >
               Retry
             </button>
           </div>
         )}
 
-        {!loading && !error && products.length === 0 && (
-          <div className="rounded-xl bg-white p-10 text-center">
-            <p className="text-slate-500">
-              No products found.
-            </p>
-          </div>
-        )}
+        {/* Empty */}
+        {!loading &&
+          !error &&
+          products.length === 0 && (
+            <div className="rounded-xl border border-slate-200 bg-white p-10 text-center">
+              <p className="text-slate-500">
+                No products found.
+              </p>
+            </div>
+          )}
 
-        {!loading && !error && products.length > 0 && (
-          <>
-            <ProductTable
-              products={products}
-              onProductClick={(id) =>
-                navigate(`/products/${id}`)
-              }
-            />
+        {/* Products */}
+        {!loading &&
+          !error &&
+          products.length > 0 && (
+            <>
+              <ProductTable
+                products={products}
+                onProductClick={(id) =>
+                  navigate(`/products/${id}`)
+                }
+              />
 
-            <ProductCards
-              products={products}
-              onProductClick={(id) =>
-                navigate(`/products/${id}`)
-              }
-            />
+              <ProductCards
+                products={products}
+                onProductClick={(id) =>
+                  navigate(`/products/${id}`)
+                }
+              />
 
-            <Pagination
-              page={page}
-              total={total}
-              limit={limit}
-              onPageChange={updatePage}
-              onLimitChange={updateLimit}
-            />
-          </>
-        )}
+              <Pagination
+                page={page}
+                total={total}
+                limit={limit}
+                onPageChange={updatePage}
+                onLimitChange={updateLimit}
+              />
+            </>
+          )}
       </main>
     </div>
   );
